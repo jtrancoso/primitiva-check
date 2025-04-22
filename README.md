@@ -1,80 +1,109 @@
 # 🧮 Primitiva Check
 
-Automatiza la consulta de resultados de La Primitiva y registra tus aciertos en una hoja de cálculo de Google Sheets.
+Script en Python para consultar automáticamente los resultados del sorteo de La Primitiva y registrar los aciertos en una hoja de cálculo de Google Sheets.
+
+---
 
 ## 🚀 Características
 
-- Obtiene los resultados más recientes de La Primitiva desde el feed RSS oficial.
-- Compara los números ganadores con tus apuestas personales.
-- Registra los resultados en una hoja de cálculo de Google Sheets.
-- Formatea automáticamente la hoja con colores y estilos para facilitar la lectura.
-- Compatible con programación automática mediante `cron`.
+- Consulta el feed oficial de resultados vía RSS.
+- Extrae la combinación ganadora, el número complementario y el reintegro.
+- Compara con tu combinación personal y evalúa el tipo de premio.
+- Registra los resultados en Google Sheets con formato automático.
+- Añade colores condicionales según número de aciertos y tipo de premio.
+- Se puede automatizar con `cron` en una máquina local o una VM de GCP.
 
-## 📦 Requisitos
+---
+
+## ⚙️ Requisitos
 
 - Python 3.7 o superior.
-- Cuenta de Google con acceso a Google Sheets.
-- Archivo de credenciales de cuenta de servicio (`service_account.json`).
-- Hoja de cálculo de Google Sheets creada y compartida con la cuenta de servicio.
+- Cuenta de Google Cloud con un proyecto activo.
+- Una hoja de cálculo de Google Sheets creada.
+- Archivo de credenciales `service_account.json` con acceso a esa hoja.
+- Archivo `.env` con tus datos personales del sorteo.
 
-## 🔧 Instalación
+---
+
+## 🛠 Instalación
 
 1. **Clona el repositorio:**
 
-   ```bash
-   git clone https://github.com/jtrancoso/primitiva-check.git
-   cd primitiva-check
-   ```
+```bash
+git clone https://github.com/jtrancoso/primitiva-check.git
+cd primitiva-check
+```
 
-2. **Crea y activa un entorno virtual (opcional pero recomendado):**
+2. **Instala las dependencias:**
 
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
+```bash
+pip install -r requirements.txt
+```
 
-3. **Instala las dependencias:**
+3. **Configura tu archivo `.env`:**
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+Crea un archivo `.env` en la raíz del proyecto con este contenido:
 
-4. **Configura las variables de entorno:**
+```env
+SPREADSHEET_ID=tu_id_de_google_sheet
+MY_NUMBERS=1,2,3,4,5,6
+REINTEGRO=7
+```
 
-   Crea un archivo `.env` en la raíz del proyecto con el siguiente contenido:
+4. **Coloca `service_account.json` en la raíz del proyecto.**
 
-   ```env
-   SPREADSHEET_ID=tu_id_de_hoja_de_calculo
-   MY_NUMBERS=1,2,3,4,5,6
-   REINTEGRO=7
-   ```
+---
 
-   - `SPREADSHEET_ID`: ID de tu hoja de cálculo de Google Sheets.
-   - `MY_NUMBERS`: Números de tu apuesta separados por comas.
-   - `REINTEGRO`: Número de reintegro de tu apuesta.
-
-5. **Coloca el archivo de credenciales:**
-
-   Descarga el archivo `service_account.json` desde Google Cloud Console y colócalo en la raíz del proyecto.
-
-## 🖥️ Uso
-
-Ejecuta el script manualmente:
+## 🖥️ Ejecución manual
 
 ```bash
 python main.py
 ```
 
-## ⏰ Automatización con `cron`
+---
 
-Para ejecutar el script automáticamente los días de sorteo (lunes, jueves y sábado) a las 22:30, añade la siguiente línea a tu crontab:
+## ☁️ Ejecución automática en Google Cloud VM
+
+### 1. Asegúrate de tener configurado Python y las dependencias:
 
 ```bash
-30 22 * * 1,4,6 /ruta/a/tu/python /ruta/a/tu/proyecto/main.py >> /ruta/a/tu/proyecto/log.txt 2>&1
+sudo apt update
+sudo apt install python3 python3-pip
+pip3 install -r requirements.txt
 ```
 
-Reemplaza `/ruta/a/tu/python` y `/ruta/a/tu/proyecto/` con las rutas correspondientes en tu sistema.
+### 2. Establece la zona horaria de la VM a Madrid (opcional pero recomendable):
 
-## 📄 Licencia
+```bash
+sudo timedatectl set-timezone Europe/Madrid
+```
+
+### 3. Crea un cron job:
+
+```bash
+crontab -e
+```
+
+Y añade esta línea (ajustando las rutas a la carpeta donde tengas el proyecto):
+
+```bash
+30 22 * * 1,4,6 cd /home/usuario/primitiva-check && /usr/bin/python3 main.py >> log.txt 2>&1
+```
+
+Esto ejecutará el script los **lunes, jueves y sábados a las 22:30** (hora local), registrando el resultado en `log.txt`.
+
+---
+
+## 🧪 Test local
+
+Puedes ejecutar el script manualmente para asegurarte de que todo funciona:
+
+```bash
+python main.py
+```
+
+---
+
+## 🧾 Licencia
 
 Este proyecto está bajo la licencia MIT. Consulta el archivo [LICENSE](LICENSE) para más detalles.
