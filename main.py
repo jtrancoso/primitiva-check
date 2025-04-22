@@ -6,6 +6,8 @@ from gspread_formatting import *
 from datetime import datetime
 import re
 import os
+import requests
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -22,48 +24,79 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 # FLASK APP
 app = Flask(__name__)
 
-def parse_result(entry_title):
-    date_match = re.search(r"La Primitiva - (.*?):", entry_title)
-    date_str = date_match.group(1).strip() if date_match else ""
-    date = datetime.strptime(date_str, "%A, %d de %B de %Y").strftime("%Y-%m-%d") if date_str else ""
 
-    numbers_match = re.search(r": ([\d\s]+) bonus", entry_title)
-    numbers_str = numbers_match.group(1).strip() if numbers_match else ""
-    numbers = list(map(int, numbers_str.split())) if numbers_str else []
 
-    bonus_match = re.search(r"bonus: (\d+)", entry_title)
-    bonus = int(bonus_match.group(1)) if bonus_match else None
+def get_rss_feed(url):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "Accept": "application/rss+xml,application/xml"
+    }
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()  # lanza error si no es 200
+    return feedparser.parse(response.text)
 
-    reintegro_match = re.search(r"Reintegro: (\d+)", entry_title)
-    reintegro = int(reintegro_match.group(1)) if reintegro_match else None
+def parse_result(entry):
+    html = entry["description"]
+    soup = BeautifulSoup(html, "html.parser")
+    bold_tags = soup.find_all("b")
+    
+    if len(bold_tags) < 3:
+        raise ValueError(f"Entrada no válida (faltan datos): {entry['title']}")
+
+    # Fecha desde el title: último número en el string
+    title = entry["title"]
+    date_match = re.search(r"del (\d{1,2}) de (\w+) de (\d{4})", title, re.IGNORECASE)
+    if not date_match:
+        raise ValueError(f"No se pudo extraer la fecha del título: {title}")
+    day, month_str, year = date_match.groups()
+
+    # Convertir a formato YYYY-MM-DD
+    months = {
+        "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
+        "julio": 7, "agosto": 8, "septiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12
+    }
+    month = months[month_str.lower()]
+    try:
+        date = datetime(int(year), month, int(day))
+    except ValueError as e:
+        raise ValueError(f"❌ Error con la fecha '{day} {month_str} {year}': {e}")
+
+    # Números premiados: primer <b>
+    raw_numbers = bold_tags[0].get_text(strip=True)  # Ej: "09 - 17 - 24 - 25 - 35 - 38"
+    numbers = list(map(int, raw_numbers.split(" - ")))
+
+    # Complementario: segundo <b>
+    bonus_text = bold_tags[1].get_text(strip=True)  # Ej: "C(12)"
+    bonus = int(re.search(r"C\((\d+)\)", bonus_text).group(1))
+
+    # Reintegro: tercer <b>
+    reintegro_text = bold_tags[2].get_text(strip=True)  # Ej: "R(3)"
+    reintegro = int(re.search(r"R\((\d+)\)", reintegro_text).group(1))
 
     return date, set(numbers), bonus, reintegro
 
 def calculate_match(numbers_sorteo):
     return len(MY_NUMBERS.intersection(numbers_sorteo))
 
-def calculate_prize(matches, bonus_match ,reintegro_acertado):
-    premios = {3: 8, 4: 50, 5: 3000, 6: 1000000}
-    premio = premios.get(matches, 0)
-    
-    if matches == 5 and bonus_match:
-        return 50000  # ejemplo de premio 5+C
-    if matches == 0 and reintegro_acertado:
-        premio = 1
-    return premio
 
-def describir_premio(matches, bonus_match, reintegro_match):
-    if matches == 6:
-        return "6 Aciertos"
+# mejorar con datos reales de premios en el futuro
+def calculate_prize(matches, bonus_match, reintegro_match):
+    return 1 if reintegro_match else 0
+
+def set_prize(matches, bonus_match, reintegro_match):
+    if matches == 6 and reintegro_match:
+        return "Especial (6 + R)"
+    elif matches == 6:
+        return "1ª (6 Aciertos)"
     elif matches == 5 and bonus_match:
-        return "5 + Complementario"
+        return "2ª (5 + C)"
     elif matches == 5:
-        return "5 Aciertos"
+        return "3ª (5 Aciertos)"
     elif matches == 4:
-        return "4 Aciertos"
+        return "4ª (4 Aciertos)"
     elif matches == 3:
-        return "3 Aciertos"
-    elif matches == 0 and reintegro_match:
+        return "5ª (3 Aciertos)"
+    elif matches < 3 and reintegro_match:
         return "Reintegro"
     else:
         return "Sin premio"
@@ -79,21 +112,73 @@ def format(sheet):
         horizontalAlignment='CENTER'
     )
     format_money = cellFormat(
-        numberFormat=numberFormat(type='CURRENCY', pattern='€#,##0.00'),
+        numberFormat=numberFormat(type='CURRENCY', pattern='##0.00,€#'),
         horizontalAlignment='RIGHT'
     )
-    format_cell_range(sheet, 'A1:E1', format_header)
+    format_center = cellFormat(horizontalAlignment='CENTER')
+    
+    format_cell_range(sheet, 'A1:H1', format_header)
     format_cell_range(sheet, 'A2:A100', format_date)
-    format_cell_range(sheet, 'D2:E100', format_money)
-    format_centrado = cellFormat(horizontalAlignment='CENTER')
-    format_cell_range(sheet, 'G2:G100', format_centrado)
+    format_cell_range(sheet, 'B2:F100', format_center)
+    format_cell_range(sheet, 'G2:H100', format_money)
+    
+    last_row = len(sheet.get_all_values())
+    
+    # Colores condicionales para columna E (Aciertos)
+    aciertos_rules = [
+        ConditionalFormatRule(
+            ranges=[GridRange(sheetId=sheet._properties['sheetId'], startRowIndex=1, endRowIndex=last_row, startColumnIndex=4, endColumnIndex=5)],
+            booleanRule=BooleanRule(
+                condition=BooleanCondition('NUMBER_LESS', ['3']),
+                format=CellFormat(backgroundColor=Color(1, 0.9, 0.9))  # rojo claro
+
+            )
+        ),
+        ConditionalFormatRule(
+            ranges=[GridRange(sheetId=sheet._properties['sheetId'], startRowIndex=1, endRowIndex=last_row, startColumnIndex=4, endColumnIndex=5)],
+            booleanRule=BooleanRule(
+                condition=BooleanCondition('NUMBER_GREATER_THAN_EQ', ['3']),
+                format=CellFormat(backgroundColor=Color(0.8, 1, 0.8))  # verde claro
+            )
+        )
+    ]
+
+    # Colores condicionales para columna F (Tipo de premio)
+    tipo_rules = [
+        ConditionalFormatRule(
+            ranges=[GridRange(sheetId=sheet._properties['sheetId'], startRowIndex=1, endRowIndex=last_row, startColumnIndex=5, endColumnIndex=6)],
+            booleanRule=BooleanRule(
+                condition=BooleanCondition('TEXT_EQ', ['Sin premio']),
+                format=CellFormat(backgroundColor=Color(1, 0.9, 0.9))  # rojo claro
+            )
+        ),
+        ConditionalFormatRule(
+            ranges=[GridRange(sheetId=sheet._properties['sheetId'], startRowIndex=1, endRowIndex=last_row, startColumnIndex=5, endColumnIndex=6)],
+            booleanRule=BooleanRule(
+                condition=BooleanCondition('TEXT_EQ', ['Reintegro']),
+                format=CellFormat(backgroundColor=Color(0.9, 0.9, 1))  # azul claro
+            )
+        ),
+        ConditionalFormatRule(
+            ranges=[GridRange(sheetId=sheet._properties['sheetId'], startRowIndex=1, endRowIndex=last_row, startColumnIndex=5, endColumnIndex=6)],
+            booleanRule=BooleanRule(
+                condition=BooleanCondition('TEXT_NOT_CONTAINS', ['Sin premio']), # como va por orden, solo llega aqui si tiene premio
+                format=CellFormat(backgroundColor=Color(0.8, 1, 0.8))  # verde si hay algo
+            )
+        )
+    ]
+
+    # Aplicar las reglas
+    rules = get_conditional_format_rules(sheet)
+    rules.clear()  # Borra reglas anteriores si quieres empezar limpio
+    rules.extend(aciertos_rules + tipo_rules)
+    rules.save()   # Guarda los cambios en la hoja
+    
 
 @app.route("/update", methods=["GET"])
 def update_primitiva():
     # 1. Leer el RSS
-    feed = feedparser.parse(RSS_URL)
-    
-    print(feed)
+    feed = get_rss_feed(RSS_URL)
 
     if not feed.entries:
         return "❌ No se encontraron resultados", 500
@@ -109,19 +194,18 @@ def update_primitiva():
 	# 3. Recorrer los 7 sorteos más recientes
     for entry in feed.entries[:7]:
         try:
-            date, numbers, bonus, reintegro = parse_result(entry.title)
+            date, numbers, bonus, reintegro = parse_result(entry)
             if date in existing_dates:
                 print(f"⏭️ Sorteo del {date} ya existe, se omite")
                 continue
-            
+            date_str = date.strftime("%d/%m/%Y")
             matches = calculate_match(numbers)
             bonus_match = bonus in MY_NUMBERS
-            reintegro_match = reintegro in MY_NUMBERS
+            reintegro_match = reintegro == REINTEGRO
             prize = calculate_prize(matches, bonus_match, reintegro_match)
-            tipo = describir_premio(matches, bonus_match, reintegro_match)
+            prize_type = set_prize(matches, bonus_match, reintegro_match)
             cost = 1.0
-            
-            new_row = [date, " - ".join(map(str, sorted(numbers))), matches, prize, cost, bonus, tipo]
+            new_row = [date_str, " - ".join(map(str, sorted(numbers))), bonus, reintegro, matches, prize_type, prize, cost]
             sheet.append_row(new_row)
             news += 1
             print(f"✅ Añadido sorteo del {date}: {matches} aciertos, premio {prize}€")
