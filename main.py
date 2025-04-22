@@ -215,9 +215,9 @@ def update_primitiva():
 
     format(sheet)
     if news == 0:
-        return f"⏭️ Sorteo del {date_str} ya existe, se omite", 200
+        return f"⏭️ Sorteo del {date_str} ya existe, se omite.", 200
     
-    return f"✔️ Completado. Se añadieron {news} sorteos nuevos.", 200
+    return f"✔️ Completado. Se añadió el sorte del  {date_str}.", 200
 
 if __name__ == "__main__":
     app.run(debug=True)
