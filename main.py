@@ -174,6 +174,31 @@ def format(sheet):
     rules.extend(aciertos_rules + tipo_rules)
     rules.save()   # Guarda los cambios en la hoja
     
+	# 🧭 Ordenar automáticamente por la columna A (fecha)
+    sheet_id = sheet._properties["sheetId"]
+    sort_request = {
+        "requests": [
+            {
+                "sortRange": {
+                    "range": {
+                        "sheetId": sheet_id,
+                        "startRowIndex": 1,  # sin la cabecera
+                        "startColumnIndex": 0,
+                        "endColumnIndex": 8
+                    },
+                    "sortSpecs": [
+                        {
+                            "dimensionIndex": 0,  # columna A
+                            "sortOrder": "DESCENDING"
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+
+    sheet.spreadsheet.batch_update(sort_request)
+    
 
 @app.route("/update", methods=["GET"])
 def update_primitiva():
@@ -195,7 +220,6 @@ def update_primitiva():
     for entry in feed.entries[:1]:
         try:
             date, numbers, bonus, reintegro = parse_result(entry)
-            print("fecha", date, "existing", existing_dates)
             date_str = date.strftime("%d/%m/%Y")
             if date_str in existing_dates:
                 print(f"⏭️ Sorteo del {date_str} ya existe, se omite")
@@ -217,7 +241,7 @@ def update_primitiva():
     if news == 0:
         return f"⏭️ Sorteo del {date_str} ya existe, se omite.", 200
     
-    return f"✔️ Completado. Se añadió el sorte del  {date_str}.", 200
+    return f"✔️ Completado. Se añadió el sorteo del  {date_str}.", 200
 
 if os.getenv("LOCAL_DEV") == "true":
     app.run(debug=True, port=8080)
