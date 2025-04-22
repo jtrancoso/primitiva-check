@@ -1,4 +1,8 @@
-flask
-feedparser
+Flask==2.3.3
 gspread
-google-auth
+oauth2client
+gspread-formatting
+feedparser
+requests
+python-dotenv
+beautifulsoup4

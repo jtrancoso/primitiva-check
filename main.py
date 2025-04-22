@@ -17,7 +17,7 @@ SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
 SPREADSHEET_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}"
 SERVICE_ACCOUNT_FILE = "service_account.json"
 MY_NUMBERS = set(map(int, os.getenv("MY_NUMBERS").split(",")))
-REINTEGRO = 3
+REINTEGRO = os.getenv("REINTEGRO")
 RSS_URL = "https://www.loteriasyapuestas.es/es/la-primitiva/resultados/.formatoRSS"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
@@ -221,3 +221,8 @@ def update_primitiva():
 
 if __name__ == "__main__":
     app.run(debug=True)
+    
+	## main para la cloudfunction
+    #import os
+    #port = int(os.environ.get("PORT", 8080))
+    #app.run(host="0.0.0.0", port=port)
