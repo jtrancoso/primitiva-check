@@ -219,11 +219,11 @@ def update_primitiva():
             new_row = [date_str, " - ".join(map(str, sorted(numbers))), bonus, reintegro, matches, prize_type, prize, cost]
             sheet.append_row(new_row)
             format(sheet)
-
             print(f"✅ Añadido sorteo del {date_str}: {matches} aciertos, premio {prize}€")
-
+            
     except Exception as e:
         print(f"❌ Error procesando: {e}")
+
 
 if __name__ == "__main__":
     update_primitiva()
