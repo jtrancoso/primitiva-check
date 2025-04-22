@@ -192,13 +192,14 @@ def update_primitiva():
     news = 0
     
 	# 3. Recorrer los 7 sorteos más recientes
-    for entry in feed.entries[:7]:
+    for entry in feed.entries[:1]:
         try:
             date, numbers, bonus, reintegro = parse_result(entry)
-            if date in existing_dates:
-                print(f"⏭️ Sorteo del {date} ya existe, se omite")
-                continue
+            print("fecha", date, "existing", existing_dates)
             date_str = date.strftime("%d/%m/%Y")
+            if date_str in existing_dates:
+                print(f"⏭️ Sorteo del {date_str} ya existe, se omite")
+                continue
             matches = calculate_match(numbers)
             bonus_match = bonus in MY_NUMBERS
             reintegro_match = reintegro == REINTEGRO
@@ -213,7 +214,9 @@ def update_primitiva():
             print(f"⚠️ Error procesando una entrada: {e}")
 
     format(sheet)
-
+    if news == 0:
+        return f"⏭️ Sorteo del {date_str} ya existe, se omite", 200
+    
     return f"✔️ Completado. Se añadieron {news} sorteos nuevos.", 200
 
 if __name__ == "__main__":
