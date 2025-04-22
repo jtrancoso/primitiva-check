@@ -219,10 +219,5 @@ def update_primitiva():
     
     return f"✔️ Completado. Se añadió el sorte del  {date_str}.", 200
 
-if __name__ == "__main__":
-    app.run(debug=True)
-    
-	## main para la cloudfunction
-    #import os
-    #port = int(os.environ.get("PORT", 8080))
-    #app.run(host="0.0.0.0", port=port)
+if os.getenv("LOCAL_DEV") == "true":
+    app.run(debug=True, port=8080)
