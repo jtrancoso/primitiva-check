@@ -163,6 +163,31 @@ def format(sheet):
     rules.clear()
     rules.extend(aciertos_rules + tipo_rules)
     rules.save()
+    
+	# Ordenar automáticamente por la columna A (fecha)
+    sheet_id = sheet._properties["sheetId"]
+    sort_request = {
+        "requests": [
+            {
+                "sortRange": {
+                    "range": {
+                        "sheetId": sheet_id,
+                        "startRowIndex": 1,  # sin la cabecera
+                        "startColumnIndex": 0,
+                        "endColumnIndex": 8
+                    },
+                    "sortSpecs": [
+                        {
+                            "dimensionIndex": 0,  # columna A
+                            "sortOrder": "DESCENDING"
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+
+    sheet.spreadsheet.batch_update(sort_request)
 
 def update_primitiva():
     try:
