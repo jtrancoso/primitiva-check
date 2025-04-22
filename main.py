@@ -1,6 +1,5 @@
-import feedparser
+
 import gspread
-from flask import Flask
 from google.oauth2.service_account import Credentials
 from gspread_formatting import *
 from datetime import datetime
@@ -21,19 +20,25 @@ REINTEGRO = os.getenv("REINTEGRO")
 RSS_URL = "https://www.loteriasyapuestas.es/es/la-primitiva/resultados/.formatoRSS"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
-# FLASK APP
-app = Flask(__name__)
-
-
-
 def get_rss_feed(url):
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Accept": "application/rss+xml,application/xml"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "application/rss+xml,application/xml,text/xml;q=0.9,*/*;q=0.8"
     }
     response = requests.get(url, headers=headers)
-    response.raise_for_status()  # lanza error si no es 200
-    return feedparser.parse(response.text)
+    response.raise_for_status()
+
+    soup = BeautifulSoup(response.text, "xml")
+    items = soup.find_all("item")
+
+    entries = []
+    for item in items:
+        title = item.title.get_text(strip=True)
+        description = item.description.get_text()
+        entries.append({"title": title, "description": description})
+
+    return entries
+
 
 def parse_result(entry):
     html = entry["description"]
@@ -175,49 +180,46 @@ def format(sheet):
     rules.save()   # Guarda los cambios en la hoja
     
 
-@app.route("/update", methods=["GET"])
-def update_primitiva():
-    # 1. Leer el RSS
-    feed = get_rss_feed(RSS_URL)
-
-    if not feed.entries:
-        return "❌ No se encontraron resultados", 500
-
-	 # 2. Autenticación con Sheets
-    creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-    client = gspread.authorize(creds)
-    sheet = client.open_by_url(SPREADSHEET_URL).sheet1
-    existing_dates = sheet.col_values(1)
+def update_primitiva(request):
+    try:
+        # 1. Leer el RSS
+        entries = get_rss_feed(RSS_URL)
+        if not entries:
+            return "❌ No se encontraron resultados", 500
     
-    news = 0
-    
-	# 3. Recorrer los 7 sorteos más recientes
-    for entry in feed.entries[:1]:
-        try:
-            date, numbers, bonus, reintegro = parse_result(entry)
-            print("fecha", date, "existing", existing_dates)
-            date_str = date.strftime("%d/%m/%Y")
-            if date_str in existing_dates:
-                print(f"⏭️ Sorteo del {date_str} ya existe, se omite")
-                continue
-            matches = calculate_match(numbers)
-            bonus_match = bonus in MY_NUMBERS
-            reintegro_match = reintegro == REINTEGRO
-            prize = calculate_prize(matches, bonus_match, reintegro_match)
-            prize_type = set_prize(matches, bonus_match, reintegro_match)
-            cost = 1.0
-            new_row = [date_str, " - ".join(map(str, sorted(numbers))), bonus, reintegro, matches, prize_type, prize, cost]
-            sheet.append_row(new_row)
-            news += 1
-            print(f"✅ Añadido sorteo del {date}: {matches} aciertos, premio {prize}€")
-        except Exception as e:
-            print(f"⚠️ Error procesando una entrada: {e}")
+	    # 2. Autenticación con Sheets
+        creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+        client = gspread.authorize(creds)
+        sheet = client.open_by_url(SPREADSHEET_URL).sheet1
+        existing_dates = sheet.col_values(1)
+        
+        news = 0
+        
+	    # 3. Recorrer el sorteo más recientes
+        for entry in entries[:1]:
+                date, numbers, bonus, reintegro = parse_result(entry)
+                date_str = date.strftime("%d/%m/%Y")
+                
+                if date_str in existing_dates:
+                    print(f"⏭️ Sorteo del {date_str} ya existe, se omite")
+                    continue
+                
+                matches = calculate_match(numbers)
+                bonus_match = bonus in MY_NUMBERS
+                reintegro_match = reintegro == REINTEGRO
+                prize = calculate_prize(matches, bonus_match, reintegro_match)
+                prize_type = set_prize(matches, bonus_match, reintegro_match)
+                cost = 1.0
+                
+                new_row = [date_str, " - ".join(map(str, sorted(numbers))), bonus, reintegro, matches, prize_type, prize, cost]
+                sheet.append_row(new_row)
+                news += 1
+                print(f"✅ Añadido sorteo del {date}: {matches} aciertos, premio {prize}€")
 
-    format(sheet)
-    if news == 0:
-        return f"⏭️ Sorteo del {date_str} ya existe, se omite.", 200
+        format(sheet)
+        if news == 0:
+            return f"⏭️ Sorteo del {date_str} ya existe, se omite.", 200
+        return f"✔️ Completado. Se añadió el sorte del  {date_str}.", 200
     
-    return f"✔️ Completado. Se añadió el sorte del  {date_str}.", 200
-
-if os.getenv("LOCAL_DEV") == "true":
-    app.run(debug=True, port=8080)
+    except Exception as e:
+        return(f"⚠️ Error procesando una entrada: {e}")
