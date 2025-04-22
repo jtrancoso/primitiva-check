@@ -1,8 +1,8 @@
-Flask==2.3.3
 gspread
-oauth2client
 gspread-formatting
-feedparser
+oauth2client
+google-auth
 requests
-python-dotenv
 beautifulsoup4
+lxml
+python-dotenv
