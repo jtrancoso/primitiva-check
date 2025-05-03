@@ -1,6 +1,5 @@
 gspread
 gspread-formatting
-oauth2client
 google-auth
 requests
 beautifulsoup4

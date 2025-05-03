@@ -7,6 +7,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+import time
 
 load_dotenv()
 
@@ -19,24 +20,41 @@ REINTEGRO = int(os.getenv("REINTEGRO"))
 RSS_URL = "https://www.loteriasyapuestas.es/es/la-primitiva/resultados/.formatoRSS"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
+
+def to_google_sheets_date(dt):
+    epoch = datetime(1899, 12, 30)
+    delta = dt - epoch
+    return float(delta.days) + (delta.seconds / 86400)
+
+def timestamp():
+    return datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+
 def get_rss_feed(url):
     headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.15; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
     "Accept": "application/rss+xml,application/xml",
     "Referer": "https://www.loteriasyapuestas.es/"
     }
-    
-    response = requests.get(url, headers=headers, timeout=10)
-    response.raise_for_status()
+    try:
+       response = requests.get(url, headers=headers, timeout=20)
+       response.raise_for_status()
 
-    soup = BeautifulSoup(response.text, "xml")
-    items = soup.find_all("item")
+       soup = BeautifulSoup(response.text, "xml")
+       items = soup.find_all("item")
 
-    entries = []
-    for item in items:
-        title = item.title.get_text(strip=True)
-        description = item.description.get_text()
-        entries.append({"title": title, "description": description})
+       entries = []
+       for item in items:
+           title = item.title.get_text(strip=True)
+           description = item.description.get_text()
+           entries.append({"title": title, "description": description})
+
+    except requests.exceptions.Timeout:
+        print(f"{timestamp()}⚠️ Tiempo de espera agotado al consultar el feed.")
+        return []
+
+    except requests.exceptions.RequestException as e:
+        print(f"{timestamp()}❌ Error al conectar con la web: {e}")
+        return []
 
     return entries
 
@@ -194,7 +212,7 @@ def update_primitiva():
     try:
         entries = get_rss_feed(RSS_URL)
         if not entries:
-            print("❌ No se encontraron sorteos")
+            print(f"{timestamp()}❌ No se encontraron sorteos")
             return
 
         creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
@@ -207,7 +225,7 @@ def update_primitiva():
             date_str = date.strftime("%d/%m/%Y")
 
             if date_str in existing_dates:
-                print(f"⏭️ Sorteo del {date_str} ya existe, se omite")
+                print(f"{timestamp()}⏭️ Sorteo del {date_str} ya existe, se omite")
                 return
 
             matches = calculate_match(numbers)
@@ -216,13 +234,15 @@ def update_primitiva():
             prize = calculate_prize(matches, bonus_match, reintegro_match)
             prize_type = set_prize(matches, bonus_match, reintegro_match)
             cost = 1.0
-            new_row = [date_str, " - ".join(map(str, sorted(numbers))), bonus, reintegro, matches, prize_type, prize, cost]
+            date_serial = to_google_sheets_date(date)
+            new_row = [date_serial, " - ".join(map(str, sorted(numbers))), bonus, reintegro, matches, prize_type, prize, cost]
             sheet.append_row(new_row)
+            time.sleep(2)
             format(sheet)
-            print(f"✅ Añadido sorteo del {date_str}: {matches} aciertos, premio {prize}€")
+            print(f"{timestamp()}✅ Añadido sorteo del {date_str}: {matches} aciertos, premio {prize}€")
             
     except Exception as e:
-        print(f"❌ Error procesando: {e}")
+        print(f"{timestamp()}❌ Error procesando: {e}")
 
 
 if __name__ == "__main__":
