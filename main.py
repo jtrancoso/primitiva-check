@@ -8,6 +8,9 @@ import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 import time
+from datetime import datetime, timedelta
+from gspread_formatting.dataframe import cellFormat, Color
+
 
 load_dotenv()
 
@@ -19,6 +22,109 @@ MY_NUMBERS = set(map(int, os.getenv("MY_NUMBERS").split(",")))
 REINTEGRO = int(os.getenv("REINTEGRO"))
 RSS_URL = "https://www.loteriasyapuestas.es/es/la-primitiva/resultados/.formatoRSS"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+
+
+
+# Días de sorteo: lunes=0, jueves=3, sábado=5
+SORTEO_DIAS = {0, 3, 5}
+
+def to_google_sheets_date(dt):
+    epoch = datetime(1899, 12, 30)
+    delta = dt - epoch
+    return float(delta.days) + (delta.seconds / 86400)
+
+def get_next_sorteo_dates(start_date, count):
+    fechas = []
+    actual = start_date
+    while len(fechas) < count:
+        if actual.weekday() in {0, 3, 5}:  # lunes, jueves, sábado
+            fechas.append(actual)
+        actual += timedelta(days=1)
+    return fechas
+
+def set_renewal_cell(sheet):
+    hoy = datetime.now()
+
+    # Leer fecha anterior de renovación (K11)
+    try:
+        fecha_k11_str = sheet.acell('K11').value
+        fecha_k11 = datetime.strptime(fecha_k11_str, "%d/%m/%Y")
+    except:
+        fecha_k11 = None
+
+    # Si ha llegado el día de renovación, asumimos que has comprado hoy → actualizamos K10
+    if fecha_k11 and hoy >= fecha_k11:
+        sheet.update(range_name='K10', values=[[hoy.strftime('%d/%m/%Y')]])
+        print(f"{timestamp()}✅ Se actualiza K10 a hoy por ser día de renovación.")
+
+    # Leer fecha de juego actualizada (K10)
+    try:
+        fecha_juego_str = sheet.acell('K10').value
+        fecha_juego = datetime.strptime(fecha_juego_str, "%d/%m/%Y")
+    except:
+        print(f"{timestamp()}❌ No se pudo leer K10 para calcular la renovación.")
+        return
+
+    # Calcular sorteo restantes esa semana
+    fin_de_semana = fecha_juego + timedelta(days=(5 - fecha_juego.weekday()) % 7)
+    sorteos_semana_1 = [d for d in get_next_sorteo_dates(fecha_juego, 3) if d <= fin_de_semana]
+
+    # 3 sorteos de la semana siguiente
+    fecha_semana_2 = fin_de_semana + timedelta(days=1)
+    sorteos_semana_2 = get_next_sorteo_dates(fecha_semana_2, 3)
+
+    total_sorteos = sorteos_semana_1 + sorteos_semana_2
+
+    # Fecha del primer sorteo que ya no cubrirías
+    fecha_renovacion = get_next_sorteo_dates(total_sorteos[-1] + timedelta(days=1), 1)[0]
+    fecha_serial = to_google_sheets_date(fecha_renovacion)
+
+    # Escribir en K11
+    sheet.update(range_name='K11', values=[[fecha_serial]])
+
+    # Formato como fecha centrada
+    fmt = cellFormat(
+        numberFormat=numberFormat(type='DATE', pattern='dd/mm/yyyy'),
+        horizontalAlignment='CENTER'
+    )
+    format_cell_range(sheet, 'K11', fmt)
+
+    # Calcular cuántos sorteos quedan activos entre hoy y renovación
+    sorteos_restantes = [d for d in total_sorteos if hoy <= d < fecha_renovacion]
+
+    # Colores condicionales
+    rules = get_conditional_format_rules(sheet)
+    rules.rules = [r for r in rules if not any(
+        rg.startRowIndex == 10 and rg.startColumnIndex == 10
+        for rg in r.ranges
+    )]
+
+    # 🔴 rojo si ya pasó
+    rule_roja = ConditionalFormatRule(
+        ranges=[GridRange(sheetId=sheet._properties['sheetId'],
+                          startRowIndex=10, endRowIndex=11,
+                          startColumnIndex=10, endColumnIndex=11)],
+        booleanRule=BooleanRule(
+            condition=BooleanCondition('CUSTOM_FORMULA', ['=K11<=TODAY()']),
+            format=CellFormat(backgroundColor=Color(1, 0.8, 0.8))
+        )
+    )
+    rules.append(rule_roja)
+
+    # 🟠 naranja si quedan 1 o 2 sorteos
+    if 1 <= len(sorteos_restantes) <= 2:
+        rule_naranja = ConditionalFormatRule(
+            ranges=[GridRange(sheetId=sheet._properties['sheetId'],
+                              startRowIndex=10, endRowIndex=11,
+                              startColumnIndex=10, endColumnIndex=11)],
+            booleanRule=BooleanRule(
+                condition=BooleanCondition('CUSTOM_FORMULA', ['=AND(K11>=TODAY(), K11<=TODAY()+7)']),
+                format=CellFormat(backgroundColor=Color(1, 0.9, 0.6))
+            )
+        )
+        rules.append(rule_naranja)
+
+    rules.save()
 
 
 def to_google_sheets_date(dt):
@@ -239,6 +345,7 @@ def update_primitiva():
             sheet.append_row(new_row)
             time.sleep(2)
             format(sheet)
+            set_renewal_cell(sheet)
             print(f"{timestamp()}✅ Añadido sorteo del {date_str}: {matches} aciertos, premio {prize}€")
             
     except Exception as e:
