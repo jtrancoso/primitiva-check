@@ -20,7 +20,7 @@ SPREADSHEET_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}"
 SERVICE_ACCOUNT_FILE = "service_account.json"
 MY_NUMBERS = set(map(int, os.getenv("MY_NUMBERS").split(",")))
 REINTEGRO = int(os.getenv("REINTEGRO"))
-RSS_URL = "https://www.loteriasyapuestas.es/es/la-primitiva/resultados/.formatoRSS"
+RSS_URL = os.getenv("RSS_URL")
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 
@@ -326,7 +326,7 @@ def update_primitiva():
         sheet = client.open_by_url(SPREADSHEET_URL).sheet1
         existing_dates = sheet.col_values(1)
 
-        for entry in entries[:1]:
+        for entry in entries:
             date, numbers, bonus, reintegro = parse_result(entry)
             date_str = date.strftime("%d/%m/%Y")
 
