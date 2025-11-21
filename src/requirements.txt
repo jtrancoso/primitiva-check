@@ -1,7 +1,8 @@
 gspread
 gspread-formatting
 google-auth
-requests
 beautifulsoup4
 lxml
 python-dotenv
+playwright
+google-api-python-client
