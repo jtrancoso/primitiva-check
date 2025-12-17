@@ -33,7 +33,7 @@ def append_sorteo_row(sheet, row_data):
 
 
 def get_renewal_dates(sheet):
-    """Lee las fechas de renovación desde M2 y M3."""
+    """Lee las fechas de renovación desde K18 y K19."""
     start_date = None
     renewal_date = None
     
@@ -55,6 +55,6 @@ def get_renewal_dates(sheet):
 
 
 def update_renewal_dates(sheet, start_date, renewal_date):
-    """Actualiza las fechas de renovación en M2 y M3."""
+    """Actualiza las fechas de renovación en K18 y K19."""
     sheet.update(range_name=CELL_CYCLE_START, values=[[start_date.strftime("%d/%m/%Y")]])
     sheet.update(range_name=CELL_NEXT_RENEWAL, values=[[renewal_date.strftime("%d/%m/%Y")]])

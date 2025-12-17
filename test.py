@@ -14,19 +14,19 @@ print(f"   Próximo lunes (2 sem): {next_monday.strftime('%A %d/%m/%Y')}")
 print(f"   ¿Es lunes 29? {next_monday.day == 29 and next_monday.month == 12}\n")
 
 # Simulación: Primera ejecución después de comprar
-print("=== Primera ejecución (K11 vacío) ===")
+print("=== Primera ejecución (K19 vacío) ===")
 result1 = calculate_cycle_status(
-    start_date=datetime(2025, 12, 15),  # Pusiste en K10 el 15/12
-    stored_renewal_date=None             # K11 está vacío
+    start_date=datetime(2025, 12, 15),  # Pusiste en K18 el 15/12
+    stored_renewal_date=None             # K19 está vacío
 )
 print(f"→ Renovación calculada: {result1['new_renewal_date'].strftime('%A %d/%m/%Y')}")
 print(f"→ ¿Ha cambiado?: {result1['has_changed']} (debe ser True)\n")
 
 # Simulación: Segunda ejecución (ya guardó el 29)
-print("=== Segunda ejecución (K11 = 29/12/2025) ===")
+print("=== Segunda ejecución (K19 = 29/12/2025) ===")
 result2 = calculate_cycle_status(
-    start_date=datetime(2025, 12, 15),       # K10 sigue siendo 15/12
-    stored_renewal_date=datetime(2025, 12, 29)  # K11 ya tiene el 29
+    start_date=datetime(2025, 12, 15),       # K18 sigue siendo 15/12
+    stored_renewal_date=datetime(2025, 12, 29)  # K19 ya tiene el 29
 )
 print(f"→ Renovación calculada: {result2['new_renewal_date'].strftime('%A %d/%m/%Y')}")
 print(f"→ ¿Ha cambiado?: {result2['has_changed']} (debe ser False)\n")

@@ -39,8 +39,8 @@ def run():
     new_entries_added = 0
     for entry in raw_entries:
         try:
-            # Parseo (Domain)
-            date_obj, numbers, bonus, reintegro = parser.parse_result(entry)
+            # Parseo (Domain) - ahora incluye tabla de premios
+            date_obj, numbers, bonus, reintegro, prizes = parser.parse_result(entry)
             date_str = date_obj.strftime("%d/%m/%Y")
 
             # Verificar si ya existe
@@ -53,8 +53,11 @@ def run():
             bonus_match = bonus in settings.MY_NUMBERS
             reintegro_match = reintegro == settings.REINTEGRO
 
-            prize_val = rules.calculate_prize(matches, bonus_match, reintegro_match)
             prize_type = rules.set_prize(matches, bonus_match, reintegro_match)
+            
+            # Obtener importe real del premio desde la tabla del RSS
+            prize_amount_str = prizes.get(prize_type, "0,00 €")
+            prize_amount = parser.parse_prize_amount(prize_amount_str)
 
             # Preparar fila para guardar
             date_serial = sheets.to_google_sheets_date(date_obj)
@@ -66,13 +69,19 @@ def run():
                 reintegro,
                 matches,
                 prize_type,
-                prize_val,
+                prize_amount,  # Importe real del premio
                 1.0
             ]
 
             # Añadir al final de la tabla A:H (sin afectar columnas J-K)
             sheets.append_sorteo_row(sheet, new_row)
             print(f"✅ Guardado sorteo del {date_str}")
+            
+            # Notificar si hay premio (3+ aciertos)
+            if matches >= 3:
+                print(f"🎉 ¡PREMIO! {prize_type} - {prize_amount_str}")
+                notifier.notify_prize(date_str, prize_type, prize_amount_str, matches)
+            
             new_entries_added += 1
             time.sleep(1)  # Pausa de cortesía
 
@@ -90,7 +99,7 @@ def run():
             sort_range = f"A2:H{last_row}"
             sheet.sort((1, 'des'), range=sort_range)
 
-    # 4. Gestión de Renovación (lee/escribe en M2:M3, crea evento en Calendar)
+    # 4. Gestión de Renovación (lee/escribe en K18:K19, crea evento en Calendar)
     try:
         current_start, current_renewal = sheets.get_renewal_dates(sheet)
         plan = renewal.calculate_cycle_status(current_start, current_renewal)
@@ -98,7 +107,7 @@ def run():
         if plan['has_changed']:
             print(f"🔄 Nuevo ciclo: {plan['new_start_date'].strftime('%d/%m/%Y')} → {plan['new_renewal_date'].strftime('%d/%m/%Y')}")
             
-            # Guardar en Sheet (columna M)
+            # Guardar en Sheet (columna K)
             sheets.update_renewal_dates(sheet, plan['new_start_date'], plan['new_renewal_date'])
             
             # Crear evento en Calendar solo si es fecha futura

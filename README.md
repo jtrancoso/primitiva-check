@@ -1,27 +1,26 @@
 # 🧮 Primitiva Check
 
-Script en Python para consultar automáticamente los resultados del sorteo de La Primitiva y registrar los aciertos en una hoja de cálculo de Google Sheets.
+Script en Python para consultar automáticamente los resultados del sorteo de La Primitiva, registrar los aciertos en Google Sheets y crear recordatorios de renovación en Google Calendar.
 
 ---
 
 ## 🚀 Características
 
-- Consulta el feed oficial de resultados vía RSS.
-- Extrae la combinación ganadora, el número complementario y el reintegro.
-- Compara con tu combinación personal y evalúa el tipo de premio.
-- Registra los resultados en Google Sheets con formato automático.
-- Añade colores condicionales según número de aciertos y tipo de premio.
-- Se puede automatizar con `cron` en una máquina local o una VM de GCP.
+- **Scraping con Playwright** — Evita bloqueos de Cloudflare/Akamai usando modo headless stealth
+- **Google Sheets** — Registra los sorteos con fecha, números, aciertos y premio real
+- **Google Calendar** — Crea eventos de recordatorio para renovar el boleto cada 2 semanas
+- **Notificaciones por email** — Te avisa si hay premio (3+ aciertos) o si la IP es bloqueada
+- **Dockerizado** — Preparado para ejecutarse en Cloud Run Jobs o cualquier entorno con Docker
 
 ---
 
 ## ⚙️ Requisitos
 
-- Python 3.7 o superior.
-- Cuenta de Google Cloud con un proyecto activo.
-- Una hoja de cálculo de Google Sheets creada.
-- Archivo de credenciales `service_account.json` con acceso a esa hoja.
-- Archivo `.env` con tus datos personales del sorteo.
+- Python 3.9 o superior
+- Cuenta de Google Cloud con un proyecto activo
+- Google Sheet con acceso para la cuenta de servicio
+- Calendario de Google con acceso para la cuenta de servicio
+- Archivo `service_account.json` con permisos de Sheets y Calendar
 
 ---
 
@@ -31,30 +30,34 @@ Script en Python para consultar automáticamente los resultados del sorteo de La
 
 ```bash
 git clone https://github.com/jtrancoso/primitiva-check.git
-cd primitiva-check
+cd primitiva-check/src
 ```
 
 2. **Instala las dependencias:**
 
 ```bash
 pip install -r requirements.txt
+playwright install chromium
 ```
 
 3. **Configura tu archivo `.env`:**
 
-Crea un archivo `.env` en la raíz del proyecto con este contenido:
-
 ```env
 SPREADSHEET_ID=tu_id_de_google_sheet
-MY_NUMBERS=1,2,3,4,5,6
-REINTEGRO=7
+MY_NUMBERS=tus_numeros
+REINTEGRO=tu_reintegro
+RSS_URL=https://www.loteriasyapuestas.es/es/la-primitiva/resultados/.formatoRSS
+CALENDAR_ID=tu_email@gmail.com
+
+# Notificaciones (opcional)
+SMTP_EMAIL=tu_email@gmail.com
+SMTP_PASSWORD=tu_app_password
+NOTIFY_EMAIL=tu_email@gmail.com
 ```
 
-4. **Coloca `service_account.json` en la raíz del proyecto.**
+4. **Coloca `service_account.json` en la carpeta `src/`**
 
----
-
-## 🖥️ Ejecución manual
+5. **Ejecuta:**
 
 ```bash
 python main.py
@@ -62,45 +65,30 @@ python main.py
 
 ---
 
-## ☁️ Ejecución automática en Google Cloud VM
+## 📊 Estructura del Sheet
 
-### 1. Asegúrate de tener configurado Python y las dependencias:
-
-```bash
-sudo apt update
-sudo apt install python3 python3-pip
-pip3 install -r requirements.txt
-```
-
-### 2. Establece la zona horaria de la VM a Madrid (opcional pero recomendable):
-
-```bash
-sudo timedatectl set-timezone Europe/Madrid
-```
-
-### 3. Crea un cron job:
-
-```bash
-crontab -e
-```
-
-Y añade esta línea (ajustando las rutas a la carpeta donde tengas el proyecto):
-
-```bash
-30 22 * * 1,4,6 cd /home/usuario/primitiva-check && /usr/bin/python3 main.py >> log.txt 2>&1
-```
-
-Esto ejecutará el script los **lunes, jueves y sábados a las 22:30** (hora local), registrando el resultado en `log.txt`.
+| Columna | Contenido                   |
+| ------- | --------------------------- |
+| A       | Fecha del sorteo            |
+| B       | Números premiados           |
+| C       | Complementario              |
+| D       | Reintegro                   |
+| E       | Nº de aciertos              |
+| F       | Tipo de premio              |
+| G       | Importe del premio (€)      |
+| H       | Coste del boleto (€)        |
+| K18     | Fecha inicio del ciclo      |
+| K19     | Próxima fecha de renovación |
 
 ---
 
-## 🧪 Test local
+## 📧 Notificaciones
 
-Puedes ejecutar el script manualmente para asegurarte de que todo funciona:
+El script envía emails automáticos cuando:
 
-```bash
-python main.py
-```
+- 🎉 **Hay premio** (3+ aciertos) — Incluye categoría e importe real
+- 🚨 **IP bloqueada** — Detecta bloqueos de Akamai/Cloudflare
+- ❌ **Error crítico** — Problemas con el RSS o la conexión
 
 ---
 

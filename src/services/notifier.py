@@ -73,3 +73,23 @@ def notify_blocked():
              "2. Usar un proxy residencial\n"
              "3. Ejecutar manualmente desde local"
     )
+
+
+def notify_prize(date_str: str, prize_type: str, prize_amount: str, matches: int):
+    """
+    Notifica cuando hay un premio (3+ aciertos).
+    
+    Args:
+        date_str: Fecha del sorteo (ej: "17/12/2025")
+        prize_type: Tipo de premio (ej: "5ª (3 Aciertos)")
+        prize_amount: Importe real del premio (ej: "8,00 €")
+        matches: Número de aciertos
+    """
+    send_email(
+        subject=f"🎉 ¡PREMIO! {prize_type}",
+        body=f"¡Has ganado en el sorteo del {date_str}!\n\n"
+             f"🏆 Categoría: {prize_type}\n"
+             f"💰 Importe: {prize_amount}\n"
+             f"🎯 Aciertos: {matches}\n\n"
+             f"¡Enhorabuena! 🍀"
+    )

@@ -1,0 +1,25 @@
+steps:
+  # Construir la imagen
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["build", "-t", "gcr.io/$PROJECT_ID/primitiva-check", "./src"]
+
+  # Subir la imagen
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["push", "gcr.io/$PROJECT_ID/primitiva-check"]
+
+  # Actualizar el Cloud Run Job
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      - "run"
+      - "jobs"
+      - "update"
+      - "primitiva-check"
+      - "--image=gcr.io/$PROJECT_ID/primitiva-check"
+      - "--region=europe-west1"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+images:
+  - "gcr.io/$PROJECT_ID/primitiva-check"
