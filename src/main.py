@@ -3,7 +3,7 @@ from datetime import datetime
 
 # Importamos nuestros módulos
 from config import settings
-from services import scraper, sheets, calendar
+from services import scraper, sheets, calendar, notifier
 from domain import parser, rules, renewal
 
 
@@ -15,9 +15,16 @@ def run():
     print(f"{timestamp()} 🚀 Iniciando ejecución...")
 
     # 1. Obtener RSS (Service)
-    raw_entries = scraper.get_rss_feed(settings.RSS_URL)
+    raw_entries, was_blocked = scraper.get_rss_feed(settings.RSS_URL)
+    
+    if was_blocked:
+        print("🚨 IP bloqueada por Akamai/Cloudflare")
+        notifier.notify_blocked()
+        return
+    
     if not raw_entries:
         print("⚠️ No se obtuvieron datos del RSS.")
+        notifier.notify_error("No se obtuvieron datos del RSS. Posible problema con la web o el formato.")
         return
 
     # 2. Conectar a Sheets (Service)

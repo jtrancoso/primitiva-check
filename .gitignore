@@ -2,6 +2,7 @@
 service_account.json
 .env
 log.txt
+env-vars.yaml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

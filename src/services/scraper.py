@@ -4,7 +4,16 @@ from bs4 import BeautifulSoup
 import time
 import random
 
+
 def get_rss_feed(url):
+    """
+    Obtiene el feed RSS de la Primitiva usando Playwright.
+    
+    Returns:
+        tuple: (entries, was_blocked)
+            - entries: lista de diccionarios con title y description
+            - was_blocked: True si se detectó bloqueo de IP
+    """
     ts = datetime.now().strftime("[%H:%M:%S]")
     print(f"{ts} 🕷️  Modo Stealth 2.0: Activando 'Headless New'...")
     
@@ -16,16 +25,17 @@ def get_rss_feed(url):
             browser = p.chromium.launch(
                 headless=False,  # <--- IMPORTANTE: Dejar en False
                 args=[
-                    "--headless=new", # <--- El modo indetectable real
+                    "--headless=new",  # El modo indetectable real
                     "--no-sandbox",
-                    "--disable-blink-features=AutomationControlled", # Oculta la info de automatización
+                    "--disable-dev-shm-usage",  # Importante para Docker/Cloud
+                    "--disable-blink-features=AutomationControlled",
                     "--disable-infobars"
                 ]
             )
             
-            # Contexto con User Agent de un Mac real (coincidiendo con el tuyo)
+            # Contexto con User Agent de Chrome real
             context = browser.new_context(
-                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
                 viewport={"width": 1280, "height": 800},
                 locale="es-ES",
                 timezone_id="Europe/Madrid"
@@ -38,32 +48,40 @@ def get_rss_feed(url):
 
             # Navegación
             print(f"{ts} ➡️ Navegando a: {url}")
-            
-            # Usamos 'commit' primero para ser más rápidos, luego esperamos un poco
             response = page.goto(url, timeout=60000, wait_until="domcontentloaded")
             
             # Pequeña pausa aleatoria humana
             time.sleep(random.uniform(3, 5))
 
             content = page.content()
-            status = response.status if response else "???"
+            status = response.status if response else 0
             print(f"{ts} 📡 Estado HTTP: {status}")
 
             browser.close()
 
             # Verificación de bloqueo
-            if "Access Denied" in content or status == 403:
-                print(f"{ts} 🚨 BLOQUEO AKAMAI DETECTADO. Contenido:\n{content[:200]}")
-                return []
+            blocked_indicators = [
+                "Access Denied",
+                "Request blocked",
+                "Pardon Our Interruption",
+                "Just a moment",  # Cloudflare
+                "Please Wait",
+            ]
+            
+            is_blocked = status == 403 or any(indicator in content for indicator in blocked_indicators)
+            
+            if is_blocked:
+                print(f"{ts} 🚨 BLOQUEO DETECTADO. Estado: {status}")
+                print(f"{ts} Contenido parcial:\n{content[:300]}")
+                return [], True
 
             # Parseo
             soup = BeautifulSoup(content, "xml")
             items = soup.find_all("item")
 
             if not items:
-                # Si no hay items pero tampoco error 403 explícito, revisamos qué bajó
                 print(f"{ts} ⚠️ XML vacío o malformado. Inicio:\n{content[:300]}")
-                return []
+                return [], False
 
             entries = []
             for item in items:
@@ -71,8 +89,9 @@ def get_rss_feed(url):
                 description = item.description.get_text()
                 entries.append({"title": title, "description": description})
             
-            return entries
+            print(f"{ts} ✅ Obtenidos {len(entries)} sorteos del RSS")
+            return entries, False
 
     except Exception as e:
         print(f"❌ Error en Scraper: {e}")
-        return []
+        return [], False
