@@ -59,11 +59,9 @@ def run():
             prize_amount_str = prizes.get(prize_type, "0,00 €")
             prize_amount = parser.parse_prize_amount(prize_amount_str)
 
-            # Preparar fila para guardar
-            date_serial = sheets.to_google_sheets_date(date_obj)
-
+            # Preparar fila para guardar (fecha como texto para que la comparación funcione)
             new_row = [
-                date_serial,
+                date_str,  # Fecha como "10/01/2026" (no serial) para comparación correcta
                 " - ".join(map(str, sorted(numbers))),
                 bonus,
                 reintegro,
