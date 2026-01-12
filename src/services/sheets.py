@@ -29,7 +29,11 @@ def append_sorteo_row(sheet, row_data):
     Añade una fila de sorteo al final de la tabla A:H.
     Usa table_range para NO afectar las columnas J-K.
     """
-    sheet.append_row(row_data, table_range="A:H")
+    sheet.append_row(
+        row_data, 
+        table_range="A:H",
+        value_input_option='USER_ENTERED'  # Para que Sheets interprete y formatee los valores
+    )
 
 
 def get_renewal_dates(sheet):
