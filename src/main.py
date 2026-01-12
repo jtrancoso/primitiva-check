@@ -41,7 +41,8 @@ def run():
         try:
             # Parseo (Domain) - ahora incluye tabla de premios
             date_obj, numbers, bonus, reintegro, prizes = parser.parse_result(entry)
-            date_str = date_obj.strftime("%d/%m/%Y")
+            # Formato: día sin cero, mes con cero (como lo muestra Sheets)
+            date_str = f"{date_obj.day}/{date_obj.month:02d}/{date_obj.year}"
 
             # Verificar si ya existe
             if date_str in existing_dates:
