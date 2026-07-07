@@ -22,6 +22,10 @@ REINTEGRO = int(os.getenv("REINTEGRO"))
 # URL del RSS de resultados
 RSS_URL = os.getenv("RSS_URL")
 
+# Fechas de sorteos no comprados (se ignoran al procesar)
+_excluded_raw = os.getenv("EXCLUDED_DATES", "")
+EXCLUDED_DATES = set(d.strip() for d in _excluded_raw.split(",") if d.strip())
+
 # Google Calendar
 CALENDAR_ID = os.getenv("CALENDAR_ID")
 

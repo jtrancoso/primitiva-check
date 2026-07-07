@@ -44,6 +44,11 @@ def run():
             # Formato: día sin cero, mes con cero (como lo muestra Sheets)
             date_str = f"{date_obj.day}/{date_obj.month:02d}/{date_obj.year}"
 
+            # Saltar fechas excluidas (sorteos no comprados)
+            if date_str in settings.EXCLUDED_DATES:
+                print(f"🚫 Sorteo del {date_str} excluido (no comprado).")
+                continue
+
             # Verificar si ya existe
             if date_str in existing_dates:
                 print(f"⏭️  Sorteo del {date_str} ya existe.")
